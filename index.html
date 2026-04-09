@@ -325,7 +325,7 @@ td.red{color:var(--red);font-weight:700}
     </div>
     <div class="table-card">
       <div class="table-header"><span class="table-header-title">Proyectos activos</span><span class="table-badge" id="dash-proj-count">0</span></div>
-      <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Tipo</th><th>m²</th><th>Monto</th><th>Estado</th></tr></thead>
+      <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Tipo</th><th>m²</th><th>Total obra</th><th>Cobrado</th><th>Estado</th></tr></thead>
       <tbody id="dash-projects-body"></tbody></table>
     </div>
   </div>
@@ -607,20 +607,59 @@ function renderAll() {
 }
 
 function renderDashboard() {
-  const obras = state.projects.filter(p=>p.estado==="En obra").length;
-  const aprobado = state.budgets.filter(b=>b.estado==="Aprobado").reduce((a,b)=>a+Number(b.monto),0);
-  const pendientes = state.budgets.filter(b=>b.estado==="Enviado"||b.estado==="Pendiente").length;
+  // Proyectos con al menos un presupuesto original Aprobado
+  // y que NO estén en estado Finalizado
+  const proyectosConPresAprobado = new Set(
+    state.budgets
+      .filter(b=>(b.tipo==="original"||!b.tipo)&&b.estado==="Aprobado"&&b.proyectoId)
+      .map(b=>b.proyectoId)
+  );
+  const obras = [...proyectosConPresAprobado].filter(pid=>{
+    const p=state.projects.find(x=>x.id===pid);
+    return p && p.estado!=="Finalizado";
+  }).length;
+
+  // Monto total de presupuestos originales aprobados + sus adicionales aprobados
+  const aprobado = state.budgets
+    .filter(b=>b.estado==="Aprobado")
+    .reduce((a,b)=>a+Number(b.monto||0),0);
+
+  // Presupuestos originales pendientes o enviados (sin aprobar)
+  const pendientes = state.budgets
+    .filter(b=>(b.tipo==="original"||!b.tipo)&&(b.estado==="Enviado"||b.estado==="Pendiente"))
+    .length;
+
   const leadsActivos = (state.leads||[]).filter(l=>l.estado!=="Descartado"&&l.estado!=="Cliente").length;
+
   document.getElementById("stat-clientes").textContent=state.clients.length;
   document.getElementById("stat-obras").textContent=obras;
   document.getElementById("stat-facturado").textContent=pesos(aprobado);
   document.getElementById("stat-pendientes").textContent=pendientes;
   if(document.getElementById("stat-leads")) document.getElementById("stat-leads").textContent=leadsActivos;
   document.getElementById("dash-proj-count").textContent=state.projects.length;
-  document.getElementById("dash-projects-body").innerHTML=state.projects.slice(0,6).map(p=>`
-    <tr><td class="bold">${esc(p.nombre)}</td><td>${esc(clientName(p.clienteId))}</td><td>${esc(p.tipo)}</td>
-    <td>${p.m2||"-"}</td><td class="bold">${p.presupuesto?pesos(p.presupuesto):"-"}</td>
-    <td>${badge(p.estado)}</td></tr>`).join("")||`<tr><td colspan="6" class="empty-row">Sin proyectos</td></tr>`;
+
+  // Tabla: proyectos con presupuesto aprobado primero, luego el resto
+  const projOrdenados = [...state.projects].sort((a,b)=>{
+    const aAprobado=proyectosConPresAprobado.has(a.id)?0:1;
+    const bAprobado=proyectosConPresAprobado.has(b.id)?0:1;
+    return aAprobado-bAprobado;
+  });
+
+  document.getElementById("dash-projects-body").innerHTML=projOrdenados.slice(0,8).map(p=>{
+    const tieneAprobado=proyectosConPresAprobado.has(p.id);
+    const budgetsProyecto=state.budgets.filter(b=>b.proyectoId===p.id);
+    const totalObra=budgetsProyecto.reduce((a,b)=>a+Number(b.monto||0),0);
+    const cobrado=budgetsProyecto.reduce((a,b)=>a+calcCuotas(b).cobrado,0);
+    return `<tr style="${tieneAprobado?"":"opacity:0.6"}">
+      <td class="bold">${esc(p.nombre)}</td>
+      <td>${esc(clientName(p.clienteId))}</td>
+      <td>${esc(p.tipo)}</td>
+      <td>${p.m2||"-"}</td>
+      <td class="bold">${totalObra?pesos(totalObra):"-"}</td>
+      <td style="color:#1A6B35;font-weight:600">${cobrado?pesos(cobrado):"-"}</td>
+      <td>${badge(p.estado)}</td>
+    </tr>`;
+  }).join("")||`<tr><td colspan="7" class="empty-row">Sin proyectos</td></tr>`;
 }
 
 function renderClientes(q="") {
