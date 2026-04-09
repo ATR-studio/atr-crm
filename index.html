@@ -637,7 +637,7 @@ function renderDashboard() {
     .filter(b=>b.estado==="Aprobado"||b.estado==="En obra"||b.estado==="Finalizado")
     .reduce((a,b)=>a+calcCuotas(b).cobrado, 0);
 
-  // Por cobrar = facturado + pendiente de presupuestos activos (aprobados/en obra)
+  // Por cobrar = facturado + pendiente de presupuestos activos
   const totalPorCobrar = state.budgets
     .filter(b=>b.estado==="Aprobado"||b.estado==="En obra")
     .reduce((a,b)=>{ const c=calcCuotas(b); return a+c.facturado+c.pendiente; }, 0);
