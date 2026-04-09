@@ -319,14 +319,26 @@ td.red{color:var(--red);font-weight:700}
     <div class="stats-grid">
       <div class="stat-card" style="border-top-color:var(--carbon)"><div class="stat-val" id="stat-clientes">0</div><div class="stat-label">Clientes</div></div>
       <div class="stat-card" style="border-top-color:var(--red)"><div class="stat-val" id="stat-obras">0</div><div class="stat-label">Obras en curso</div></div>
-      <div class="stat-card" style="border-top-color:var(--grey)"><div class="stat-val sm" id="stat-facturado">$0</div><div class="stat-label">Facturado aprobado</div></div>
+      <div class="stat-card" style="border-top-color:var(--grey);padding:16px 18px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div class="stat-val sm" id="stat-cobrado" style="color:#1A6B35">$0</div>
+            <div class="stat-label" style="color:#1A6B35;margin-top:4px">Cobrado</div>
+          </div>
+          <div style="width:1px;background:var(--grey-light);align-self:stretch;margin:2px 0"></div>
+          <div style="text-align:right">
+            <div class="stat-val sm" id="stat-por-cobrar" style="color:#C49020">$0</div>
+            <div class="stat-label" style="color:#C49020;margin-top:4px">Por cobrar</div>
+          </div>
+        </div>
+      </div>
       <div class="stat-card" style="border-top-color:#1E9E52"><div class="stat-val" id="stat-aprobados">0</div><div class="stat-label">Presupuestos activos</div></div>
       <div class="stat-card" style="border-top-color:#C49020"><div class="stat-val" id="stat-pendientes">0</div><div class="stat-label">Presupuestos pendientes</div></div>
       <div class="stat-card" style="border-top-color:#6366f1"><div class="stat-val" id="stat-leads">0</div><div class="stat-label">Leads activos</div></div>
     </div>
     <div class="table-card">
       <div class="table-header"><span class="table-header-title">Proyectos activos</span><span class="table-badge" id="dash-proj-count">0</span></div>
-      <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Tipo</th><th>m²</th><th>Total obra</th><th>Cobrado</th><th>Estado</th></tr></thead>
+      <table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Tipo</th><th>m²</th><th>Total obra</th><th>Cobrado</th><th>Por cobrar</th><th>Estado</th></tr></thead>
       <tbody id="dash-projects-body"></tbody></table>
     </div>
   </div>
@@ -620,10 +632,15 @@ function renderDashboard() {
     return p && p.estado!=="Finalizado";
   }).length;
 
-  // Monto total de presupuestos originales aprobados + sus adicionales aprobados
-  const aprobado = state.budgets
-    .filter(b=>b.estado==="Aprobado")
-    .reduce((a,b)=>a+Number(b.monto||0),0);
+  // Cobrado total desde cuotas de presupuestos aprobados/en obra/finalizados
+  const totalCobrado = state.budgets
+    .filter(b=>b.estado==="Aprobado"||b.estado==="En obra"||b.estado==="Finalizado")
+    .reduce((a,b)=>a+calcCuotas(b).cobrado, 0);
+
+  // Por cobrar = facturado + pendiente de presupuestos activos (aprobados/en obra)
+  const totalPorCobrar = state.budgets
+    .filter(b=>b.estado==="Aprobado"||b.estado==="En obra")
+    .reduce((a,b)=>{ const c=calcCuotas(b); return a+c.facturado+c.pendiente; }, 0);
 
   // Presupuestos originales ACTIVOS (Aprobado / En obra)
   const aprobados = state.budgets
@@ -639,7 +656,8 @@ function renderDashboard() {
 
   document.getElementById("stat-clientes").textContent=state.clients.length;
   document.getElementById("stat-obras").textContent=obras;
-  document.getElementById("stat-facturado").textContent=pesos(aprobado);
+  if(document.getElementById("stat-cobrado")) document.getElementById("stat-cobrado").textContent=pesos(totalCobrado);
+  if(document.getElementById("stat-por-cobrar")) document.getElementById("stat-por-cobrar").textContent=pesos(totalPorCobrar);
   document.getElementById("stat-aprobados").textContent=aprobados;
   document.getElementById("stat-pendientes").textContent=pendientes;
   if(document.getElementById("stat-leads")) document.getElementById("stat-leads").textContent=leadsActivos;
@@ -657,6 +675,10 @@ function renderDashboard() {
     const budgetsProyecto=state.budgets.filter(b=>b.proyectoId===p.id);
     const totalObra=budgetsProyecto.reduce((a,b)=>a+Number(b.monto||0),0);
     const cobrado=budgetsProyecto.reduce((a,b)=>a+calcCuotas(b).cobrado,0);
+    const porCobrar=budgetsProyecto.reduce((a,b)=>{
+      const c=calcCuotas(b);
+      return a+c.facturado+c.pendiente;
+    },0);
     return `<tr style="${tieneAprobado?"":"opacity:0.6"}">
       <td class="bold">${esc(p.nombre)}</td>
       <td>${esc(clientName(p.clienteId))}</td>
@@ -664,9 +686,10 @@ function renderDashboard() {
       <td>${p.m2||"-"}</td>
       <td class="bold">${totalObra?pesos(totalObra):"-"}</td>
       <td style="color:#1A6B35;font-weight:600">${cobrado?pesos(cobrado):"-"}</td>
+      <td style="color:#C49020;font-weight:600">${porCobrar?pesos(porCobrar):"-"}</td>
       <td>${badge(p.estado)}</td>
     </tr>`;
-  }).join("")||`<tr><td colspan="7" class="empty-row">Sin proyectos</td></tr>`;
+  }).join("")||`<tr><td colspan="8" class="empty-row">Sin proyectos</td></tr>`;
 }
 
 function renderClientes(q="") {
