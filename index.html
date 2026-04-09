@@ -76,7 +76,7 @@ nav{flex:1;padding:8px 14px}
 .search-inp{padding:10px 14px;border:1.5px solid var(--grey-light);border-radius:10px;font-size:14px;font-family:var(--font);font-weight:500;color:var(--carbon);outline:none;background:#fff;width:100%;max-width:340px;margin-bottom:18px}
 
 /* STATS */
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:28px}
 .stat-card{background:#fff;border-radius:16px;padding:22px 20px 18px;box-shadow:0 2px 12px rgba(58,56,50,0.08);border-top:4px solid var(--carbon)}
 .stat-val{font-size:36px;font-weight:700;color:var(--carbon);line-height:1}
 .stat-val.sm{font-size:20px}
@@ -320,7 +320,8 @@ td.red{color:var(--red);font-weight:700}
       <div class="stat-card" style="border-top-color:var(--carbon)"><div class="stat-val" id="stat-clientes">0</div><div class="stat-label">Clientes</div></div>
       <div class="stat-card" style="border-top-color:var(--red)"><div class="stat-val" id="stat-obras">0</div><div class="stat-label">Obras en curso</div></div>
       <div class="stat-card" style="border-top-color:var(--grey)"><div class="stat-val sm" id="stat-facturado">$0</div><div class="stat-label">Facturado aprobado</div></div>
-      <div class="stat-card" style="border-top-color:var(--taupe)"><div class="stat-val" id="stat-pendientes">0</div><div class="stat-label">Presupuestos abiertos</div></div>
+      <div class="stat-card" style="border-top-color:#1E9E52"><div class="stat-val" id="stat-aprobados">0</div><div class="stat-label">Presupuestos activos</div></div>
+      <div class="stat-card" style="border-top-color:#C49020"><div class="stat-val" id="stat-pendientes">0</div><div class="stat-label">Presupuestos pendientes</div></div>
       <div class="stat-card" style="border-top-color:#6366f1"><div class="stat-val" id="stat-leads">0</div><div class="stat-label">Leads activos</div></div>
     </div>
     <div class="table-card">
@@ -624,9 +625,14 @@ function renderDashboard() {
     .filter(b=>b.estado==="Aprobado")
     .reduce((a,b)=>a+Number(b.monto||0),0);
 
-  // Presupuestos originales pendientes o enviados (sin aprobar)
+  // Presupuestos originales ACTIVOS (Aprobado / En obra)
+  const aprobados = state.budgets
+    .filter(b=>(b.tipo==="original"||!b.tipo)&&(b.estado==="Aprobado"||b.estado==="En obra"))
+    .length;
+
+  // Presupuestos originales PENDIENTES (Pendiente / Enviado / Rechazado)
   const pendientes = state.budgets
-    .filter(b=>(b.tipo==="original"||!b.tipo)&&(b.estado==="Enviado"||b.estado==="Pendiente"))
+    .filter(b=>(b.tipo==="original"||!b.tipo)&&(b.estado==="Pendiente"||b.estado==="Enviado"||b.estado==="Rechazado"))
     .length;
 
   const leadsActivos = (state.leads||[]).filter(l=>l.estado!=="Descartado"&&l.estado!=="Cliente").length;
@@ -634,6 +640,7 @@ function renderDashboard() {
   document.getElementById("stat-clientes").textContent=state.clients.length;
   document.getElementById("stat-obras").textContent=obras;
   document.getElementById("stat-facturado").textContent=pesos(aprobado);
+  document.getElementById("stat-aprobados").textContent=aprobados;
   document.getElementById("stat-pendientes").textContent=pendientes;
   if(document.getElementById("stat-leads")) document.getElementById("stat-leads").textContent=leadsActivos;
   document.getElementById("dash-proj-count").textContent=state.projects.length;
